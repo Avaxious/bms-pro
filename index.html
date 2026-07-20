@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://gcore.jsdelivr.net https://cdn.statically.io https://tile.openstreetmap.org; img-src 'self' data: https:; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://script.google.com https://script.googleusercontent.com;">
+  <title>داشبورد عملیات دریایی | Blue Calm Marine — Vessel Checking (Live)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+
+  <!-- Splash Screen (Login) -->
+  <div id="splash" role="dialog" aria-modal="true" aria-labelledby="splashTitle">
+    <div class="card">
+      <div class="logo"><img src="BMS.jpg" alt="BMS"></div>
+      <h1 id="splashTitle"><span class="accent">B</span>lue <span class="accent">C</span>alm <span class="accent">M</span>arine</h1>
+      <div class="sub">VESSEL CHECKING INTELLIGENCE · LIVE</div>
+      <div class="desc">برای ورود به داشبورد نام کاربری و رمز عبور را وارد کنید</div>
+      <label for="loginUser" class="sr-only">نام کاربری</label>
+      <input class="field" id="loginUser" type="text" placeholder="نام کاربری" autocomplete="username">
+      <label for="loginPass" class="sr-only">رمز عبور</label>
+      <input class="field" id="loginPass" type="password" placeholder="رمز عبور" autocomplete="current-password">
+      <div class="err" id="loginErr">❌ نام کاربری یا رمز عبور اشتباه است</div>
+      <button class="btn" id="loginBtn">ورود به داشبورد ←</button>
+      <div class="footer">Blue Calm Marine — Vessel Checking</div>
+    </div>
+  </div>
+
+  <!-- Drag & Drop Overlay -->
+  <div id="dropOverlay"><div class="box">📄 فایل اکسل را همین‌جا رها کنید<small>Vessel Checking sheet به‌طور خودکار خوانده و تحلیل می‌شود</small></div></div>
+
+  <!-- Toast Notification -->
+  <div id="toast"></div>
+
+  <!-- Hidden File Input -->
+  <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls" style="display:none">
+
+  <!-- Header -->
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-mark">
+          <img src="BMS.jpg">
+        </div>
+        <div class="brand-text">
+          <div class="t1"><span class="accent">B</span>lue <span class="accent">C</span>alm <span class="accent">M</span>arine · داشبورد عملیات دریایی</div>
+          <div class="t2 ltr">VESSEL CHECKING INTELLIGENCE · LIVE</div>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-chip">آخرین بارگذاری: <span class="ltr" id="lastLoaded">—</span></div>
+        <div class="status-chip" id="timerChip" style="display:none"><span class="ico">⏱</span> <span id="timerDisplay">30:00</span><span class="sep">·</span><span id="autoRefLabel">—</span></div>
+        <button id="themeToggle" style="background:none;border:1px solid var(--panel-border);color:var(--text-dim);padding:4px 8px;border-radius:100px;cursor:pointer;font-size:13px;transition:.2s;line-height:1;" title="تغییر تم">🌙</button>
+        <span id="welcomeUser" style="display:none">خوش آمدید، <span class="un" id="userDisplay"></span> <button id="logoutBtn">خروج</button></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Library Loading -->
+  <div id="libLoading"><span class="spinner"></span> در حال بارگذاری کتابخانه‌ها…</div>
+
+  <!-- Library Error Banner -->
+  <div id="libBanner">
+    <div><b>⚠️ کتابخانه‌های مورد نیاز از اینترنت بارگذاری نشدند.</b><br>آدرس‌های <code>cdnjs.cloudflare.com</code>، <code>jsdelivr.net</code> و <code>unpkg.com</code> از این شبکه در دسترس نیستند.<br><br><b>راه‌حل‌ها:</b> ۱) VPN روشن کنید و رفرش (F5). ۲) فایل اکسل را بفرستید تا نسخهٔ آفلاین بسازم.</div>
+    <span class="closeBtn" id="libBannerClose">✕</span>
+  </div>
+
+  <!-- Password Modal -->
+  <div id="pwdModal" role="dialog" aria-modal="true">
+    <div class="modal-bg"></div>
+    <div class="modal-box">
+      <div style="font-size:32px;margin-bottom:6px">🔐</div>
+      <div style="font-weight:700;margin-bottom:3px">داده رمزنگاری شده</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">برای باز کردن رمز عبور را وارد کنید</div>
+      <label for="pwdInput" class="sr-only">رمز عبور</label>
+      <input type="password" id="pwdInput" placeholder="رمز عبور" dir="ltr" style="width:100%;padding:9px;border:1px solid var(--panel-border);border-radius:8px;background:var(--navy);color:var(--text);font-size:14px;box-sizing:border-box;text-align:center">
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="ok" style="flex:1;padding:9px;background:var(--teal);color:#04150f;border:none;border-radius:8px;font-weight:600;cursor:pointer">تأیید</button>
+        <button class="cancel" style="flex:1;padding:9px;background:var(--panel);color:var(--text-dim);border:1px solid var(--panel-border);border-radius:8px;cursor:pointer">انصراف</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="wrap">
+
+    <!-- Filter Bar -->
+    <div class="fbar">
+      <div class="frow" style="margin-bottom:6px">
+        <button class="btn date-preset" id="dp-today" style="font-size:10px;padding:4px 10px;">امروز</button>
+        <button class="btn date-preset" id="dp-7days" style="font-size:10px;padding:4px 10px;">۷ روز اخیر</button>
+        <button class="btn date-preset" id="dp-30days" style="font-size:10px;padding:4px 10px;">۳۰ روز اخیر</button>
+        <button class="btn date-preset" id="dp-month" style="font-size:10px;padding:4px 10px;">این ماه</button>
+        <button class="btn date-preset" id="dp-quarter" style="font-size:10px;padding:4px 10px;">این فصل</button>
+        <button class="btn date-preset" id="dp-year" style="font-size:10px;padding:4px 10px;">امسال</button>
+        <button class="btn" id="dateModeBtn" style="font-size:10px;padding:4px 10px;">📅 میلادی</button>
+      </div>
+      <div class="frow">
+        <div class="fg"><label>از تاریخ (Arrv Date)</label><input type="date" id="fltFrom"></div>
+        <div class="fg"><label>تا تاریخ</label><input type="date" id="fltTo"></div>
+        <div class="fg"><label>POL FORWARDER</label><select id="cb-fwd"><option value="">همه</option></select></div>
+        <div class="fg"><label>POL</label><select id="cb-pol"><option value="">همه</option></select></div>
+        <div class="fg"><label>LINE</label><select id="cb-line"><option value="">همه</option></select></div>
+        <div class="fg"><label>IRAN AGENT</label><select id="cb-agent"><option value="">همه</option></select></div>
+      </div>
+      <div class="fbar-actions">
+        <button class="btn" id="resetFiltersBtn" style="font-size:10px;">↺ بازنشانی فیلترها</button>
+        <button class="btn primary" id="exportCSVBtn" style="font-size:10px;">📥 خروجی Excel</button>
+        <span style="font-size:10px;color:var(--text-faint);margin-right:auto;font-family:var(--mono);" id="filterInfo">بدون فیلتر</span>
+      </div>
+    </div>
+    <div class="progBar" id="progBar"><div class="fill" id="progFill"></div></div>
+
+    <!-- KPI Grid -->
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- Volume Section -->
+    <div class="section-head"><h2>حجم عملیات</h2><div class="tag">CONTAINER &amp; SHIPMENT VOLUME</div></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title" id="chart1Title">روند سالانه</div>
+        <div class="card-desc" id="yearlyDesc">—</div>
+        <div class="chart-box h-280"><canvas id="chartYearly"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">ترکیب اندازهٔ کانتینر <span>(۲۰' در برابر ۴۰')</span></div>
+        <div class="card-desc" id="sizeDesc">—</div>
+        <div class="chart-box h-280"><canvas id="chartSize"></canvas></div>
+        <div class="mini-legend" id="sizeLegend"></div>
+      </div>
+    </div>
+
+    <!-- Auto Period Comparison -->
+    <div id="autoCmpSection" style="display:none">
+      <div class="section-head"><h2 id="autoCmpTitle">مقایسه با دوره قبل</h2><div class="tag">AUTO PERIOD COMPARISON</div></div>
+      <div class="auto-cmp" id="autoCmpBox"></div>
+    </div>
+
+    <!-- Monthly -->
+    <div class="section-head"><h2 id="monthSectionTitle">روند ۲۴ ماه اخیر</h2><div class="tag">ROLLING VOLUME</div></div>
+    <div class="card">
+      <div class="card-title" id="chart2Title">حجم ماهانه</div>
+      <div class="card-desc" id="monthlyDesc">—</div>
+      <div class="chart-box h-230"><canvas id="chartMonthly"></canvas></div>
+    </div>
+
+    <!-- Top Partners -->
+    <div class="section-head"><h2>شرکای عملیاتی برتر</h2><div class="tag">TOP PARTNERS BY VOLUME</div></div>
+    <div class="grid-3">
+      <div class="card"><div class="card-title">سهم نمایندگان ایران <span>(Pie)</span></div><div class="card-desc">Iran Agent Share</div><div class="chart-box h-320"><canvas id="chartLinesPie"></canvas></div></div>
+      <div class="card"><div class="card-title">برترین فورواردرهای POL</div><div class="card-desc">Top 10 POL Forwarders</div><div class="chart-box h-320"><canvas id="chartForwarders"></canvas></div></div>
+      <div class="card"><div class="card-title">برترین نمایندگان ایران</div><div class="card-desc">Top 10 Iran Agents</div><div class="chart-box h-320"><canvas id="chartAgents"></canvas></div></div>
+    </div>
+
+    <!-- Map + POL -->
+    <div class="section-head"><h2>جغرافیای مبادی بارگیری و مسیرها</h2><div class="tag">POL ROUTES &amp; DESTINATION</div></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">نقشه مبادی بارگیری و مسیرهای دریایی <span>(POL → Iran)</span></div>
+        <div class="card-desc">توزیع جغرافیایی مبادی بارگیری — قطر دایره متناسب با حجم</div>
+        <div id="mapC" style="height:360px"></div>
+      </div>
+      <div class="card"><div class="card-title">توزیع بنادر بارگیری (POL)</div><div class="card-desc">بر حسب تعداد</div><div class="chart-box h-280"><canvas id="chartPOL"></canvas></div></div>
+    </div>
+
+    <!-- Period Comparison -->
+    <div class="section-head"><h2>مقایسه دو بازه زمانی</h2><div class="tag">PERIOD COMPARISON</div></div>
+    <div class="card">
+      <div class="frow" style="margin-bottom:10px">
+        <div class="fg"><label>دوره ۱ - از</label><input type="date" id="c1s"></div>
+        <div class="fg"><label>دوره ۱ - تا</label><input type="date" id="c1e"></div>
+        <div class="fg"><label>دوره ۲ - از</label><input type="date" id="c2s"></div>
+        <div class="fg"><label>دوره ۲ - تا</label><input type="date" id="c2e"></div>
+        <div class="fg" style="display:flex;flex-direction:column;justify-content:end"><button class="btn" id="compareBtn" style="font-size:10px;">🔍 مقایسه</button></div>
+      </div>
+      <div class="cmp-grid" id="cmpGrid"></div>
+    </div>
+
+    <!-- Container List -->
+    <div class="section-head"><h2>لیست کانتینر</h2><div class="tag">FULL CONTAINER LIST</div></div>
+    <div class="board">
+      <div class="board-head">
+        <h2>ALL RECORDS · CONTAINER REGISTRY</h2>
+        <div class="board-summary">نمایش <span class="bcount" id="contShowCount">0</span> از <span class="bcount" id="contTotalCount">0</span></div>
+      </div>
+      <div class="board-search">
+        <input type="text" id="contSearch" placeholder="🔎 جستجو در کانتینر، کشتی، خط، فورواردر، POL، ایجنت...">
+        <button class="btn" id="toggleAdvBtn" style="font-size:10px;margin-right:4px;">⬇ جستجوی پیشرفته</button>
+      </div>
+      <div class="advWrap" id="advWrap">
+        <div class="advGrid">
+          <div class="fg"><label>VESSEL</label><input type="text" id="advVessel" placeholder="نام کشتی"></div>
+          <div class="fg"><label>POL FORWARDER</label><select id="advFwd"><option value="">همه</option></select></div>
+          <div class="fg"><label>POL</label><select id="advPol"><option value="">همه</option></select></div>
+          <div class="fg"><label>LINE</label><select id="advLine"><option value="">همه</option></select></div>
+          <div class="fg"><label>IRAN AGENT</label><select id="advAgent"><option value="">همه</option></select></div>
+          <div class="fg"><label>SIZE</label><select id="advSize"><option value="">همه</option></select></div>
+          <div class="fg"><label>STATUS</label><select id="advStatus"><option value="">همه</option><option>Arrived</option><option>Pending</option></select></div>
+        </div>
+      </div>
+      <div class="board-scroll" id="contScroll">
+        <table class="contab">
+          <thead id="contHead">
+            <tr>
+              <th>#</th>
+              <th>کانتینر</th>
+              <th>کشتی / سفر</th>
+              <th>سایز</th>
+              <th>تعداد</th>
+              <th>فورواردر POL</th>
+              <th>بندر بارگیری</th>
+              <th>خط کشتیرانی</th>
+              <th>نمایندهٔ ایران</th>
+              <th>تاریخ</th>
+              <th>وضعیت</th>
+            </tr>
+          </thead>
+          <tbody id="contBody"></tbody>
+        </table>
+      </div>
+      <div id="contListInfo"></div>
+    </div>
+
+    <footer>
+      <div class="ltr">© 2026 Mohammad Hassani — Blue Calm Marine Vessel Checking Dashboard. All rights reserved.</div>
+    </footer>
+  </div>
+
+</body>
+</html>
