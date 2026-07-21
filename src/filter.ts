@@ -198,10 +198,8 @@ export function buildMsOptions() {
     const s = new Set<string>()
     state.rawRecords.forEach((r) => { const v = r[prop]; if (v) s.add(v as string) })
     const vals = Array.from(s).sort()
-    sel.innerHTML = '<option value="">همه</option>'
-    vals.forEach((v) => {
-      sel.insertAdjacentHTML('beforeend', '<option value="' + v + '">' + v + '</option>')
-    })
+    sel.replaceChildren(new Option('همه', ''))
+    vals.forEach((v) => { sel.appendChild(new Option(v, v)) })
     sel.value = cur
   })
 }
@@ -357,8 +355,8 @@ export function updateFilterOptions() {
     const s = new Set<string>()
     dateFiltered.forEach((r) => { const v = r[prop]; if (v) s.add(v as string) })
     const vals = Array.from(s).sort()
-    sel.innerHTML = '<option value="">همه</option>'
-    vals.forEach((v) => { sel.insertAdjacentHTML('beforeend', '<option value="' + v + '">' + v + '</option>') })
+    sel.replaceChildren(new Option('همه', ''))
+    vals.forEach((v) => { sel.appendChild(new Option(v, v)) })
     if (cur && vals.indexOf(cur) !== -1) sel.value = cur
   })
 
@@ -371,8 +369,8 @@ export function updateFilterOptions() {
     const sel = $(advIds[i]) as HTMLSelectElement | null
     if (!sel) return
     const cur = sel.value
-    sel.innerHTML = '<option value="">همه</option>'
-    vals.forEach((v) => { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o) })
+    sel.replaceChildren(new Option('همه', ''))
+    vals.forEach((v) => { sel.appendChild(new Option(v, v)) })
     if (cur && vals.indexOf(cur) !== -1) sel.value = cur
   })
 }

@@ -3,16 +3,13 @@
    ============================================================ */
 
 import './style.css'
-import { state, $, isJalali } from './state'
-import { log } from './utils'
-import { setupChartDefaults, renderAll, toggleTheme, initTheme, updateDateFormatBtn, COLORS } from './charts'
-import { doLogin, logout, checkSession, loadConfig, LOGIN_PROXY_URL } from './auth'
-import { initFilters, resetFilters, setDatePreset, onDateChange, toggleDateFormat, filterBySelect, fmtDateToMs, getFilteredRecords } from './filter'
-import { showToast, toggleAdvSearch, advSearchChange, debouncedContSearch, renderContainerList } from './ui'
+import { state, $ } from './state'
+import { setupChartDefaults, renderAll, toggleTheme, initTheme, updateDateFormatBtn } from './charts'
+import { doLogin, logout, checkSession, loadConfig, getLoginTime } from './auth'
+import { initFilters, resetFilters, setDatePreset, onDateChange, toggleDateFormat, filterBySelect, fmtDateToMs } from './filter'
+import { toggleAdvSearch, advSearchChange, debouncedContSearch } from './ui'
 import { exportCSV } from './export'
 import { tryAutoFetch, loadFile } from './loader'
-import { aggregateFromRecords } from './data'
-import { showBanner } from './ui'
 import { fmtInt } from './utils'
 
 // ---- Period Comparison ----
@@ -26,9 +23,9 @@ function comparePeriods() {
   function calc(ss: string, se: string) {
     const arr = state.rawRecords.filter((r) => {
       if (!r.arrv_date) return false
-      const ds = fmtDateToMs(String(r.arrv_date.getTime()))
+      const ds = r.arrv_date.getTime()
       if (ss && ds < fmtDateToMs(ss)) return false
-      if (se && ds > fmtDateToMs(se) + 86400000) return false
+      if (se && ds >= fmtDateToMs(se) + 86400000) return false
       return true
     })
     const contSet = new Set(arr.filter((r) => r.container).map((r) => r.container))
@@ -50,13 +47,34 @@ function comparePeriods() {
   ]
   const cmpGrid = $('cmpGrid')
   if (cmpGrid) {
-    cmpGrid.innerHTML = items.map((item) => {
-      const v1 = (p1 as any)[item.k], v2 = (p2 as any)[item.k]
+    const cards = items.map((item) => {
+      const v1 = p1[item.k]
+      const v2 = p2[item.k]
       const diff = v2 - v1
       const pct = v1 ? ((v2 - v1) / v1 * 100).toFixed(1) : 'N/A'
-      const cl = diff > 0 ? 'up' : diff < 0 ? 'dn' : ''
-      return '<div class="cmp-item"><div class="cmp-lbl">' + item.lbl + '</div><div class="cmp-v ' + (diff > 0 ? 'teal' : 'gold') + '">' + fmtInt(v2) + '</div><div class="cmp-d">دوره ۱: ' + fmtInt(v1) + '</div><div class="cmp-ch ' + cl + '">' + (diff > 0 ? '+' : '') + pct + '%</div></div>'
-    }).join('')
+      const card = document.createElement('div')
+      card.className = 'cmp-item'
+
+      const label = document.createElement('div')
+      label.className = 'cmp-lbl'
+      label.textContent = item.lbl
+
+      const value = document.createElement('div')
+      value.className = 'cmp-v ' + (diff > 0 ? 'teal' : 'gold')
+      value.textContent = fmtInt(v2)
+
+      const previous = document.createElement('div')
+      previous.className = 'cmp-d'
+      previous.textContent = 'دوره ۱: ' + fmtInt(v1)
+
+      const change = document.createElement('div')
+      change.className = 'cmp-ch ' + (diff > 0 ? 'up' : diff < 0 ? 'dn' : '')
+      change.textContent = (diff > 0 ? '+' : '') + pct + '%'
+
+      card.append(label, value, previous, change)
+      return card
+    })
+    cmpGrid.replaceChildren(...cards)
   }
 }
 
@@ -91,7 +109,7 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
 
   // Auto-refresh every 5 minutes
   state.autoRefreshInterval = setInterval(() => {
-    const loggedIn = localStorage.getItem('bms_logintime')
+    const loggedIn = getLoginTime()
     if (loggedIn && (Date.now() - parseInt(loggedIn)) < 18e5 && !state.fetchInProgress) {
       const autoRefLabel = document.getElementById('autoRefLabel')
       if (autoRefLabel) autoRefLabel.textContent = '🔄 بروزرسانی...'
@@ -101,7 +119,7 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
 
   // Session timeout check
   state.logoutCheckInterval = setInterval(() => {
-    const t = localStorage.getItem('bms_logintime')
+    const t = getLoginTime()
     if (t && (Date.now() - parseInt(t)) > 18e5) logout()
   }, 15000)
 })()
