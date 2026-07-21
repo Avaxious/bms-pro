@@ -8,7 +8,7 @@ import { log } from './utils'
 import { parseRows, aggregateVesselSheet } from './data'
 import { initFilters, refreshDashboard } from './filter'
 import { showToast, showBanner } from './ui'
-import { PROXY_URL } from './auth'
+import { PROXY_URL, getAuthToken } from './auth'
 import type { Meta, BmsRecord } from './types'
 
 export async function decryptData(buf: ArrayBuffer, password: string): Promise<ArrayBuffer | null> {
@@ -51,7 +51,7 @@ export function showPasswordModal(): Promise<string | null> {
 }
 
 export async function fetchGoogleSheet(): Promise<BmsRecord[] | null> {
-  const token = localStorage.getItem('bms_token')
+  const token = getAuthToken()
   if (!token) return null
 
   try {
