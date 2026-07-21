@@ -9,6 +9,7 @@ export const state = {
   activeFilters: { fwd: [], pol: [], line: [], agent: [] } as FilterState,
   currentMeta: null as Meta | null,
   dateFormat: (localStorage.getItem('bms_dateformat') || 'miladi') as 'miladi' | 'jalali',
+  activeDatePreset: null as string | null,
 
   // Worker
   worker: null as Worker | null,
