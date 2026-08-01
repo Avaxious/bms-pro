@@ -187,8 +187,8 @@ function aggregateFromRecords(records, filters) {
 
   // Date range
   var dates = records.map(function(r){return r.date;}).filter(Boolean);
-  var date_min = dates.length ? fmtDate(new Date(Math.min.apply(null,dates))) : null;
-  var date_max = dates.length ? fmtDate(new Date(Math.max.apply(null,dates))) : null;
+  var date_min = dates.length ? fmtDate(new Date(dates.reduce(function(m,d){return Math.min(m,d.getTime());},Infinity))) : null;
+  var date_max = dates.length ? fmtDate(new Date(dates.reduce(function(m,d){return Math.max(m,d.getTime());},-Infinity))) : null;
 
   // Line share (pie)
   var lineMap = new Map();
@@ -198,7 +198,6 @@ function aggregateFromRecords(records, filters) {
       lineMap.get(records[i].iran_agent).push(records[i]);
     }
   }
-  var line_share = Array.from(lineMap.entries()).map(function(e){return{label:e[0],value:contCount(e[1])};}).sort(function(a,b){return b.value-a.value;});
 
   // TEU
   var total_teu = 0;
@@ -215,6 +214,6 @@ function aggregateFromRecords(records, filters) {
     top_agents: topNbyCount(records,'iran_agent',10), top_pol: topNbyCount(records,'pol',10),
     yearly_cont: yearly_cont, yearly_ship: yearly_ship, monthly_cont: monthly_cont,
     daily: daily, rangeDays: daily.length, all_records: all_records,
-    pol_coords: pol_coords, line_share: line_share
+    pol_coords: pol_coords
   };
 }
