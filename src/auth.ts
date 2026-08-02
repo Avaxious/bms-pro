@@ -79,6 +79,7 @@ export async function doLogin() {
       if (userDisplay) userDisplay.textContent = user
       if (welcomeUser) welcomeUser.style.display = ''
       if (timerChip) timerChip.style.display = ''
+      if (!state.timerInterval) state.timerInterval = setInterval(updateTimer, 1000)
       updateTimer()
       if (splash) splash.classList.remove('show')
       if (state.onLoginSuccess) state.onLoginSuccess()
@@ -144,8 +145,8 @@ export function checkSession() {
       if (welcomeUser) welcomeUser.style.display = ''
       if (splash) splash.classList.remove('show')
       if (timerChip) timerChip.style.display = ''
+      if (!state.timerInterval) state.timerInterval = setInterval(updateTimer, 1000)
       updateTimer()
-      state.timerInterval = setInterval(updateTimer, 1000)
     }
   } else {
     safeRemove('bms_token')
