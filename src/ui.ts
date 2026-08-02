@@ -2,7 +2,7 @@
    BMS Dashboard — UI Components
    ============================================================ */
 
-import { state, $ } from './state'
+import { state, $, safeGet } from './state'
 import { esc, fmtInt, debounce } from './utils'
 import type { ContainerRecord } from './types'
 
@@ -58,7 +58,13 @@ function vsRenderRows() {
   const total = state.vsFiltered.length
   const headH = 36
   const startIdx = Math.max(0, Math.floor((scrollTop - headH) / ROW_H) - 3)
-  const endIdx = Math.min(total, Math.ceil((scrollTop - headH + viewH) / ROW_H) + 3)
+    const endIdx = Math.min(total, Math.ceil((scrollTop - headH + viewH) / ROW_H) + 3)
+
+  if (total === 0) {
+    state.vsBodyEl.innerHTML = '<tr class="empty-row"><td colspan="11" style="text-align:center;padding:40px 16px;color:var(--text-faint);font-size:13px;">🔍 نتیجه‌ای یافت نشد — فیلترها یا جستجو را تغییر دهید</td></tr>'
+    return
+  }
+
   const topPad = startIdx * ROW_H
   const bottomPad = Math.max(0, (total - endIdx) * ROW_H)
 
@@ -119,4 +125,20 @@ export function renderContainerList(records?: ContainerRecord[]) {
   vsRenderRows()
   const contListInfo = $('contListInfo')
   if (contListInfo) contListInfo.innerHTML = ''
+}
+
+export function updateFreshness() {
+  const fetchTime = safeGet('bms_fetchtime')
+  const el = $('autoRefLabel')
+  if (!el || !fetchTime) return
+  const ageSec = Math.floor((Date.now() - parseInt(fetchTime)) / 1000)
+  const ageMin = Math.floor(ageSec / 60)
+  const ageHour = Math.floor(ageMin / 60)
+  let text: string, color: string
+  if (ageSec < 10) { text = '🔄 هم‌اکنون'; color = '#4fd1a5' }
+  else if (ageMin < 1) { text = '🔄 ' + ageSec + ' ثانیه پیش'; color = '#4fd1a5' }
+  else if (ageMin < 60) { text = '🔄 ' + ageMin + ' دقیقه پیش'; color = ageMin < 30 ? '#4fd1a5' : '#E8B641' }
+  else { text = '🔄 ' + ageHour + ' ساعت پیش'; color = '#E8566A' }
+  el.textContent = text
+  ;(el as HTMLElement).style.color = color
 }
