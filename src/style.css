@@ -173,7 +173,7 @@ h1.page-title { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
   border-radius: 6px; color: var(--text); font-size: 11px;
   font-family: var(--mono); outline: none;
 }
-.fg input:focus, .fg select:focus { border-color: var(--teal); }
+.fg input:focus, .fg select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(34,192,174,.2); }
 .fbar-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 
 /* --- KPI Grid --- */
@@ -315,7 +315,7 @@ td.miss { background: rgba(229, 101, 74, .08); color: var(--text-faint); font-st
   border-radius: 8px; color: var(--text);
   font-family: var(--mono); font-size: 11px; outline: none;
 }
-.board-search input:focus { border-color: var(--teal); }
+.board-search input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(34,192,174,.2); }
 #contListInfo { font-size: 10px; color: var(--text-faint); padding: 5px 10px; }
 
 /* --- Sort Icons --- */
@@ -510,6 +510,15 @@ footer {
 .advGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; margin-top: 6px; }
 .advGrid .fg { min-width: 0; }
 
+/* --- Print Styles --- */
+@media print {
+  .btn, #toast, #pwdModal, #libBanner, #progBar,
+  table.contab thead, table.contab tbody { display: none !important; }
+  .card, .section-head { break-inside: avoid; page-break-inside: avoid; }
+  body { background: #fff !important; color: #000 !important; }
+  .card { border: 1px solid #ccc !important; }
+}
+
 /* --- Responsive --- */
 @media (max-width: 1100px) {
   .kpi-grid { grid-template-columns: repeat(3, 1fr); }
@@ -535,4 +544,10 @@ footer {
   table.contab { font-size: 9px; }
   table.contab thead th, table.contab tbody td { padding: 4px 5px; white-space: nowrap; }
   .header-status { gap: 6px; }
+  .chart-box { height: 220px !important; }
+  .chart-box.h-280,
+  .chart-box.h-320 { height: 240px !important; }
+  #mapC { height: 280px !important; }
+  .fbar-actions { flex-wrap: wrap; gap: 8px; }
+  .fbar-actions .btn { flex: 1 1 calc(50% - 4px); min-width: 140px; text-align: center; }
 }
