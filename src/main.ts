@@ -8,7 +8,7 @@ import { log } from './utils'
 import { setupChartDefaults, renderAll, toggleTheme, initTheme, updateDateFormatBtn } from './charts'
 import { doLogin, logout, checkSession, loadConfig, LOGIN_PROXY_URL } from './auth'
 import { initFilters, resetFilters, setDatePreset, onDateChange, toggleDateFormat, filterBySelect, fmtDateToMs, getFilteredRecords } from './filter'
-import { toggleAdvSearch, advSearchChange, debouncedContSearch } from './ui'
+import { toggleAdvSearch, advSearchChange, debouncedContSearch, showToast } from './ui'
 import { exportCSV } from './export'
 import { tryAutoFetch, loadFile } from './loader'
 import { aggregateFromRecords } from './data'
@@ -118,15 +118,15 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
   // After login, fetch data automatically
   state.onLoginSuccess = () => { tryAutoFetch() }
 
-  // Auto-refresh every 5 minutes
+  // Auto-refresh every 4 hours
   state.autoRefreshInterval = setInterval(() => {
     const loggedIn = safeGet('bms_logintime')
-    if (loggedIn && (Date.now() - parseInt(loggedIn)) < 18e5 && !state.fetchInProgress) {
+    if (loggedIn && (Date.now() - parseInt(loggedIn)) < 72e5 && !state.fetchInProgress) {
       const autoRefLabel = document.getElementById('autoRefLabel')
       if (autoRefLabel) autoRefLabel.textContent = '🔄 بروزرسانی...'
       tryAutoFetch()
     }
-  }, 300000)
+  }, 14400000)
 
   // Session timeout check
   state.logoutCheckInterval = setInterval(() => {
@@ -173,6 +173,17 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
   // Reset filters
   const resetBtn = $('resetFiltersBtn')
   if (resetBtn) resetBtn.addEventListener('click', resetFilters)
+
+  // Manual refresh
+  const manualRefreshBtn = $('manualRefreshBtn')
+  if (manualRefreshBtn) manualRefreshBtn.addEventListener('click', () => {
+    if (state.fetchInProgress) {
+      showToast('⏳ در حال تازه‌سازی است...', true)
+      return
+    }
+    showToast('🔄 تازه‌سازی دیتا...', false)
+    tryAutoFetch()
+  })
 
   // Export
   const exportBtn = $('exportCSVBtn')
