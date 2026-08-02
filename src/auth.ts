@@ -6,7 +6,7 @@ import { state, $, safeGet, safeSet, safeRemove } from './state'
 import { sha256 } from './utils'
 import { log } from './utils'
 
-const SESSION_DURATION = 18e5 // 30 minutes
+const SESSION_DURATION = 72e5 // 2 hours
 
 export let PROXY_URL = ''
 export let LOGIN_PROXY_URL = ''
