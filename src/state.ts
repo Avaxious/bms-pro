@@ -4,11 +4,21 @@
 
 import type { BmsRecord, FilterState, Meta } from './types'
 
+export function safeGet(key: string, fallback: string | null = null): string | null {
+  try { return localStorage.getItem(key) ?? fallback } catch { return fallback }
+}
+export function safeSet(key: string, value: string): void {
+  try { localStorage.setItem(key, value) } catch { /* storage unavailable */ }
+}
+export function safeRemove(key: string): void {
+  try { localStorage.removeItem(key) } catch { /* storage unavailable */ }
+}
+
 export const state = {
   rawRecords: [] as BmsRecord[],
   activeFilters: { fwd: [], pol: [], line: [], agent: [] } as FilterState,
   currentMeta: null as Meta | null,
-  dateFormat: (localStorage.getItem('bms_dateformat') || 'miladi') as 'miladi' | 'jalali',
+  dateFormat: (safeGet('bms_dateformat') || 'miladi') as 'miladi' | 'jalali',
 
   // Worker
   worker: null as Worker | null,
@@ -43,6 +53,9 @@ export const state = {
 
   // Flags
   fetchInProgress: false,
+
+  // Callbacks
+  onLoginSuccess: null as (() => void) | null,
 }
 
 // DOM helper
