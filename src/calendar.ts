@@ -68,7 +68,7 @@ function _d2j(jdn: number) {
   const gy = _d2g(jdn).gy
   const jy = gy - 621
   const r = jalCal(jy)
-  const jdn1f = _g2g2d(gy, 3, r.march)
+  const jdn1f = _g2d(gy, 3, r.march)
   let jd: number, jm: number
   let k = jdn - jdn1f
 
@@ -90,10 +90,6 @@ function _d2j(jdn: number) {
   return { jy, jm, jd }
 }
 
-function _g2g2d(gy: number, gm: number, gd: number): number {
-  return _g2d(gy, gm, gd)
-}
-
 export function g2j(gy: number, gm: number, gd: number): [number, number, number] {
   const r = _d2j(_g2d(gy, gm, gd))
   return [r.jy, r.jm, r.jd]
@@ -113,8 +109,4 @@ export function fmtDateJalali(d: Date): string {
 export function fmtDateMiladi(d: Date): string {
   if (!d) return ''
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-}
-
-export function todayStr(isJal: boolean): string {
-  return isJal ? fmtDateJalali(new Date()) : fmtDateMiladi(new Date())
 }
