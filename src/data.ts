@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import type { BmsRecord, AggResult, LabelValue, MonthlyData, DailyData, ContainerRecord, PolCoord } from './types'
 import { isJalali } from './state'
 import { fmtDateJalali, fmtDateMiladi, g2j, j2g } from './calendar'
+import { log } from './utils'
 
 export function findVesselSheetName(workbook: any): string {
   const names: string[] = workbook.SheetNames
@@ -107,7 +108,16 @@ export function parseRows(rows: any[][]): BmsRecord[] {
 export function aggregateVesselSheet(workbook: any): BmsRecord[] {
   const sheetName = findVesselSheetName(workbook)
   const ws = workbook.Sheets[sheetName]
+  if (!ws) return []
   const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null })
+
+  // Header integrity check — warn if column count looks wrong
+  const header = rows[0] || []
+  const expectedCols = 15 // columns B through O used (indices 1–14)
+  if (header.length < expectedCols) {
+    log('Header column count mismatch — layout may have shifted, expected ~' + expectedCols + ' got ' + header.length)
+  }
+
   return parseRows(rows)
 }
 
