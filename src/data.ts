@@ -5,7 +5,7 @@
 import * as XLSX from 'xlsx'
 import type { BmsRecord, AggResult, LabelValue, MonthlyData, DailyData, ContainerRecord, PolCoord } from './types'
 import { isJalali } from './state'
-import { fmtDateJalali, fmtDateMiladi, g2j } from './calendar'
+import { fmtDateJalali, fmtDateMiladi, g2j, j2g } from './calendar'
 
 export function findVesselSheetName(workbook: any): string {
   const names: string[] = workbook.SheetNames
@@ -42,25 +42,40 @@ export function parseRows(rows: any[][]): BmsRecord[] {
 
     if (dateRaw != null && dateRaw !== '') {
       if (dateRaw instanceof Date && !isNaN(dateRaw.getTime())) {
-        arrvDate = dateRaw
+        const d = dateRaw
+        arrvDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
       } else if (typeof dateRaw === 'number' && dateRaw > 40000) {
-        arrvDate = new Date((dateRaw - 25569) * 86400000)
+        const d = new Date((dateRaw - 25569) * 86400000)
+        arrvDate = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
       } else if (typeof dateRaw === 'string') {
-        if (dateRaw.match(/^\d{4}-\d{2}-\d{2}/)) {
-          arrvDate = new Date(dateRaw.slice(0, 10) + 'T00:00:00Z')
-        } else {
-          const numVal = Number(dateRaw)
-          if (!isNaN(numVal) && numVal > 40000 && numVal < 60000) arrvDate = new Date((numVal - 25569) * 86400000)
+        const isoMatch = dateRaw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (isoMatch) {
+          arrvDate = new Date(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3])
         }
-        if (!arrvDate && dateRaw.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/)) {
-          const parts = dateRaw.split(/[\/\-]/)
-          let y = parseInt(parts[2])
-          if (y < 100) y += 2000
-          arrvDate = new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0]))
+        if (!arrvDate && dateRaw.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/)) {
+          const m = dateRaw.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/)!
+          const y = +m[1], mm = +m[2], dd = +m[3]
+          if (y >= 1200 && y <= 1500) {
+            const g = j2g(y, mm, dd)
+            arrvDate = new Date(g[0], g[1] - 1, g[2])
+          } else {
+            arrvDate = new Date(y, mm - 1, dd)
+          }
+        }
+        if (!arrvDate) {
+          const numVal = Number(dateRaw)
+          if (!isNaN(numVal) && numVal > 40000 && numVal < 60000) {
+            const d = new Date((numVal - 25569) * 86400000)
+            arrvDate = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+          }
+        }
+        if (!arrvDate && dateRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)) {
+          const m = dateRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)!
+          arrvDate = new Date(+m[3], +m[2] - 1, +m[1])
         }
         if (!arrvDate) {
           const tryD = new Date(dateRaw)
-          if (!isNaN(tryD.getTime())) arrvDate = tryD
+          if (!isNaN(tryD.getTime())) arrvDate = new Date(tryD.getFullYear(), tryD.getMonth(), tryD.getDate())
         }
       }
       if (arrvDate && isNaN(arrvDate.getTime())) arrvDate = null
@@ -223,20 +238,8 @@ export function aggregateFromRecords(records: BmsRecord[]): AggResult {
 
   // Date range
   const dates = records.map((r) => r.date).filter(Boolean) as Date[]
-  const date_min = dates.length ? fmtDate(new Date(Math.min(...dates.map((d) => d.getTime())))) : null
-  const date_max = dates.length ? fmtDate(new Date(Math.max(...dates.map((d) => d.getTime())))) : null
-
-  // Iran Agent share (pie)
-  const agentMap = new Map<string, BmsRecord[]>()
-  records.forEach((r) => {
-    if (r.iran_agent) {
-      if (!agentMap.has(r.iran_agent)) agentMap.set(r.iran_agent, [])
-      agentMap.get(r.iran_agent)!.push(r)
-    }
-  })
-  const line_share: LabelValue[] = Array.from(agentMap.entries())
-    .map(([label, recs]) => ({ label, value: contCount(recs) }))
-    .sort((a, b) => b.value - a.value)
+  const date_min = dates.length ? fmtDate(new Date(dates.reduce((m, d) => Math.min(m, d.getTime()), Infinity))) : null
+  const date_max = dates.length ? fmtDate(new Date(dates.reduce((m, d) => Math.max(m, d.getTime()), -Infinity))) : null
 
   // TEU
   const total_teu = records.reduce((s, r) => {
@@ -256,7 +259,7 @@ export function aggregateFromRecords(records: BmsRecord[]): AggResult {
     top_pol: topNbyCount(records, 'pol', 10),
     yearly_cont, yearly_ship, monthly_cont,
     daily, rangeDays: daily.length,
-    all_records, pol_coords, line_share,
+    all_records, pol_coords,
   }
 }
 
@@ -268,12 +271,18 @@ export function aggregateAsync(
 ) {
   if (stateObj.worker && stateObj.workerReady && !stateObj.workerBusy) {
     stateObj.workerBusy = true
-    stateObj.workerCallback = callback
+    let called = false
+    const safeCallback = (data: AggResult | null) => {
+      if (called) return
+      called = true
+      callback(data)
+    }
+    stateObj.workerCallback = safeCallback
     stateObj.workerFallback = setTimeout(() => {
       stateObj.workerBusy = false
       stateObj.workerCallback = null
       stateObj.workerReady = false
-      callback(aggregateFromRecords(records))
+      safeCallback(aggregateFromRecords(records))
     }, 5000)
     try {
       const safeRecords = records.map((r) => ({
@@ -291,7 +300,7 @@ export function aggregateAsync(
       stateObj.workerBusy = false
       stateObj.workerCallback = null
       stateObj.workerReady = false
-      callback(aggregateFromRecords(records))
+      safeCallback(aggregateFromRecords(records))
     }
   } else {
     callback(aggregateFromRecords(records))
