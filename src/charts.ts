@@ -3,7 +3,7 @@
    ============================================================ */
 
 import Chart from 'chart.js/auto'
-import { state, $, isJalali } from './state'
+import { state, $, isJalali, safeGet, safeSet } from './state'
 import { fmtInt, esc } from './utils'
 import { renderMap } from './map'
 import { renderContainerList } from './ui'
@@ -102,7 +102,7 @@ export function renderAll(v: AggResult, meta: Meta | null) {
     ]
     const autoCmpBox = $('autoCmpBox')
     if (autoCmpBox) {
-      autoCmpBox.innerHTML = '<div class="cmp-sub">بازه فعلی: ' + v.curPeriodLabel + '</div><div class="auto-cmp-row">' + cmpItems.map((it) => {
+      autoCmpBox.innerHTML = '<div class="cmp-sub">بازه فعلی: ' + esc(v.curPeriodLabel) + '</div><div class="auto-cmp-row">' + cmpItems.map((it) => {
         const diff = it.cur - it.prev
         const pct = it.prev !== 0 ? ((diff / it.prev) * 100).toFixed(1) : '∞'
         const cls = diff > 0 ? 'up' : diff < 0 ? 'dn' : 'flat'
@@ -192,18 +192,30 @@ export function renderAll(v: AggResult, meta: Meta | null) {
     },
   })
 
-  // Iran Agent Pie
-  const lsData = (v.line_share || []).slice(0, 12)
-  if (lsData.length) {
-    getOrCreateChart('chartLinesPie', {
-      type: 'pie',
-      data: { labels: lsData.map((d) => d.label), datasets: [{ data: lsData.map((d) => d.value), backgroundColor: COLORS.palette, borderColor: '#0F2A45', borderWidth: 2 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, color: chartTextColor() } }, tooltip: { callbacks: { label: (c: any) => { const total = c.dataset.data.reduce((a: number, b: number) => a + b, 0); const pct = total ? (c.parsed / total * 100).toFixed(1) : 0; return c.label + ': ' + fmtInt(c.parsed) + ' (' + pct + '%)' } } } } },
-    })
-  }
+      // Iran Agent Share Pie
+      const agentData = v.top_agents.slice(0, 10)
+      if (agentData.length) {
+        getOrCreateChart('chartLinesPie', {
+          type: 'doughnut',
+          data: {
+            labels: agentData.map((d) => d.label),
+            datasets: [{ data: agentData.map((d) => d.value), backgroundColor: COLORS.palette, borderColor: '#0F2A45', borderWidth: 2 }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false, cutout: '55%',
+            plugins: {
+              legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 }, color: chartTextColor() } },
+              tooltip: { callbacks: { label: (c: any) => c.label + ': ' + fmtInt(c.parsed) + ' کانتینر' } }
+            },
+          },
+        })
+      } else if (state.charts['chartLinesPie']) {
+        state.charts['chartLinesPie'].destroy()
+        delete state.charts['chartLinesPie']
+      }
 
   hbar('chartForwarders', v.top_forwarders, COLORS.gold)
-  hbar('chartAgents', v.top_agents, COLORS.blue)
+  hbar('chartLines', v.top_lines, COLORS.blue)
 
   // POL doughnut
   getOrCreateChart('chartPOL', {
@@ -215,13 +227,14 @@ export function renderAll(v: AggResult, meta: Meta | null) {
   // Size doughnut
   getOrCreateChart('chartSize', {
     type: 'doughnut',
-    data: { labels: v.size_dist.map((d) => d.label + "'"), datasets: [{ data: v.size_dist.map((d) => d.value), backgroundColor: [COLORS.gold, COLORS.blue], borderColor: '#0F2A45', borderWidth: 2 }] },
+    data: { labels: v.size_dist.map((d) => d.label + "'"), datasets: [{ data: v.size_dist.map((d) => d.value), backgroundColor: v.size_dist.map((_, i) => COLORS.palette[i % COLORS.palette.length]), borderColor: '#0F2A45', borderWidth: 2 }] },
     options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c: any) => c.label + ': ' + fmtInt(c.parsed) + ' کانتینر' } } } },
   })
 
   const sizeLegend = $('sizeLegend')
   if (sizeLegend) {
-    sizeLegend.innerHTML = v.size_dist.map((d, i) => '<span><i style="background:' + (i === 0 ? COLORS.gold : COLORS.blue) + '"></i> کانتینر ' + esc(d.label) + "': " + fmtInt(d.value) + ' (' + (v.total_containers ? (d.value / v.total_containers * 100).toFixed(1) : 0) + '%)</span>').join('')
+    const sizeTotal = v.size_dist.reduce((s, d) => s + d.value, 0)
+    sizeLegend.innerHTML = v.size_dist.map((d, i) => '<span><i style="background:' + COLORS.palette[i % COLORS.palette.length] + '"></i> کانتینر ' + esc(d.label) + "': " + fmtInt(d.value) + ' (' + (sizeTotal ? (d.value / sizeTotal * 100).toFixed(1) : 0) + '%)</span>').join('')
   }
 
   // Container list
@@ -236,27 +249,28 @@ export function toggleTheme() {
   const cur = html.getAttribute('data-theme')
   const next = cur === 'light' ? 'dark' : 'light'
   html.setAttribute('data-theme', next)
-  localStorage.setItem('bms_theme', next)
+  safeSet('bms_theme', next)
   const themeToggle = $('themeToggle')
   if (themeToggle) themeToggle.textContent = next === 'light' ? '☀️' : '🌙'
   const tc = chartTextColor()
   Chart.defaults.color = tc
   Object.keys(state.charts).forEach((k) => {
     if (state.charts[k]) {
-      state.charts[k].options.plugins!.legend!.labels!.color = tc
-      if (state.charts[k].options.scales) {
-        Object.keys(state.charts[k].options.scales).forEach((sk) => {
-          const sc = (state.charts[k].options.scales as any)[sk]
+      const c = state.charts[k]
+      if (c.options.plugins?.legend?.labels) c.options.plugins.legend.labels.color = tc
+      if (c.options.scales) {
+        Object.keys(c.options.scales).forEach((sk) => {
+          const sc = (c.options.scales as any)[sk]
           if (sc.ticks) sc.ticks.color = tc
         })
       }
-      state.charts[k].update()
+      c.update()
     }
   })
 }
 
 export function initTheme() {
-  const saved = localStorage.getItem('bms_theme')
+  const saved = safeGet('bms_theme')
   if (saved === 'light') {
     document.documentElement.setAttribute('data-theme', 'light')
     const themeToggle = $('themeToggle')
@@ -265,7 +279,7 @@ export function initTheme() {
 }
 
 export function updateDateFormatBtn() {
-  const df = localStorage.getItem('bms_dateformat')
+  const df = safeGet('bms_dateformat')
   if (df === 'jalali') {
     state.dateFormat = 'jalali'
     const btn = $('dateModeBtn')
