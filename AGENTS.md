@@ -19,7 +19,7 @@ npm run build    # dist/
 ## Architecture
 - Entry: `src/main.ts` (config → worker → default render → auto-fetch)
 - State: `src/state.ts` (single mutable object + `safeGet/safeSet/safeRemove`)
-- Auth: `src/auth.ts` (POST `{action:'login', user, hash}` → token; 30-min session)
+- Auth: `src/auth.ts` (POST `{action:'login', user, hash}` → token; **2-hour session**)
 - Data: `src/data.ts` (parseRows, aggregateFromRecords, aggregateAsync via Worker)
 - Fetch: `src/loader.ts` (GAS proxy, encrypted data.enc, drag-drop xlsx)
 - Filter: `src/filter.ts` + `src/ui.ts` (virtual-scroll container list)
@@ -44,3 +44,4 @@ npm run build    # dist/
 - Worker and main thread each have a copy of aggregation logic — **must stay in sync**
 - `data.xlsx` must NOT be committed or deployed (business-sensitive)
 - All dates are normalised to local-midnight in `parseRows` — both calendar modes
+- Auto-refresh interval: **4 hours** (14,400,000ms) in `main.ts`; manual refresh button `#manualRefreshBtn` in filter bar
