@@ -53,7 +53,7 @@
       </div>
       <div class="header-status">
         <div class="status-chip">آخرین بارگذاری: <span class="ltr" id="lastLoaded">—</span></div>
-        <div class="status-chip" id="timerChip" style="display:none"><span class="ico">⏱</span> <span id="timerDisplay">30:00</span><span class="sep">·</span><span id="autoRefLabel">—</span></div>
+        <div class="status-chip" id="timerChip" style="display:none"><span class="ico">⏱</span> <span id="timerDisplay">120:00</span><span class="sep">·</span><span id="autoRefLabel">—</span></div>
         <button id="themeToggle" style="background:none;border:1px solid var(--panel-border);color:var(--text-dim);padding:4px 8px;border-radius:100px;cursor:pointer;font-size:13px;transition:.2s;line-height:1;" title="تغییر تم">🌙</button>
         <span id="welcomeUser" style="display:none">خوش آمدید، <span class="un" id="userDisplay"></span> <button id="logoutBtn">خروج</button></span>
       </div>
@@ -110,6 +110,7 @@
       <div class="fbar-actions">
         <button class="btn" id="resetFiltersBtn" style="font-size:10px;">↺ بازنشانی فیلترها</button>
         <button class="btn" id="manualRefreshBtn" style="font-size:10px;">🔄 تازه‌سازی دیتا</button>
+        <button class="btn" id="printBtn" style="font-size:10px;">🖨️ چاپ گزارش</button>
         <button class="btn primary" id="exportCSVBtn" style="font-size:10px;">📥 خروجی Excel</button>
         <span style="font-size:10px;color:var(--text-faint);margin-right:auto;font-family:var(--mono);" id="filterInfo">بدون فیلتر</span>
       </div>
@@ -125,12 +126,12 @@
       <div class="card">
         <div class="card-title" id="chart1Title">روند سالانه</div>
         <div class="card-desc" id="yearlyDesc">—</div>
-        <div class="chart-box h-280"><canvas id="chartYearly"></canvas></div>
+        <div class="chart-box h-280"><canvas id="chartYearly" role="img" aria-label="نمودار روند سالانه کانتینرها"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">ترکیب اندازهٔ کانتینر <span>(۲۰' در برابر ۴۰')</span></div>
         <div class="card-desc" id="sizeDesc">—</div>
-        <div class="chart-box h-280"><canvas id="chartSize"></canvas></div>
+        <div class="chart-box h-280"><canvas id="chartSize" role="img" aria-label="نمودار ترکیب اندازه کانتینر"></canvas></div>
         <div class="mini-legend" id="sizeLegend"></div>
       </div>
     </div>
@@ -146,15 +147,15 @@
     <div class="card">
       <div class="card-title" id="chart2Title">حجم ماهانه</div>
       <div class="card-desc" id="monthlyDesc">—</div>
-      <div class="chart-box h-230"><canvas id="chartMonthly"></canvas></div>
+      <div class="chart-box h-230"><canvas id="chartMonthly" role="img" aria-label="نمودار حجم ماهانه کانتینر"></canvas></div>
     </div>
 
     <!-- Top Partners -->
     <div class="section-head"><h2>شرکای عملیاتی برتر</h2><div class="tag">TOP PARTNERS BY VOLUME</div></div>
     <div class="grid-3">
-      <div class="card"><div class="card-title">سهم نمایندگان ایران <span>(Pie)</span></div><div class="card-desc">Iran Agent Share</div><div class="chart-box h-320"><canvas id="chartLinesPie"></canvas></div></div>
-      <div class="card"><div class="card-title">برترین فورواردرهای POL</div><div class="card-desc">Top 10 POL Forwarders</div><div class="chart-box h-320"><canvas id="chartForwarders"></canvas></div></div>
-      <div class="card"><div class="card-title">برترین خطوط کشتیرانی</div><div class="card-desc">Top 10 Shipping Lines</div><div class="chart-box h-320"><canvas id="chartLines"></canvas></div></div>
+      <div class="card"><div class="card-title">سهم نمایندگان ایران <span>(Pie)</span></div><div class="card-desc">Iran Agent Share</div><div class="chart-box h-320"><canvas id="chartLinesPie" role="img" aria-label="نمودار سهم نمایندگان ایران"></canvas></div></div>
+      <div class="card"><div class="card-title">برترین فورواردرهای POL</div><div class="card-desc">Top 10 POL Forwarders</div><div class="chart-box h-320"><canvas id="chartForwarders" role="img" aria-label="نمودار برترین فورواردرهای POL"></canvas></div></div>
+      <div class="card"><div class="card-title">برترین خطوط کشتیرانی</div><div class="card-desc">Top 10 Shipping Lines</div><div class="chart-box h-320"><canvas id="chartLines" role="img" aria-label="نمودار برترین خطوط کشتیرانی"></canvas></div></div>
     </div>
 
     <!-- Map + POL -->
@@ -165,7 +166,7 @@
         <div class="card-desc">توزیع جغرافیایی مبادی بارگیری — قطر دایره متناسب با حجم</div>
         <div id="mapC" style="height:360px"></div>
       </div>
-      <div class="card"><div class="card-title">توزیع بنادر بارگیری (POL)</div><div class="card-desc">بر حسب تعداد</div><div class="chart-box h-280"><canvas id="chartPOL"></canvas></div></div>
+      <div class="card"><div class="card-title">توزیع بنادر بارگیری (POL)</div><div class="card-desc">بر حسب تعداد</div><div class="chart-box h-280"><canvas id="chartPOL" role="img" aria-label="نمودار توزیع بنادر بارگیری"></canvas></div></div>
     </div>
 
     <!-- Period Comparison -->
