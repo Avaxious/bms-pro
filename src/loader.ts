@@ -3,12 +3,12 @@
    ============================================================ */
 
 import * as XLSX from 'xlsx'
-import { state, $ } from './state'
+import { state, $, safeGet } from './state'
 import { log } from './utils'
 import { parseRows, aggregateVesselSheet } from './data'
 import { initFilters, refreshDashboard } from './filter'
 import { showToast, showBanner } from './ui'
-import { PROXY_URL, getAuthToken } from './auth'
+import { PROXY_URL } from './auth'
 import type { Meta, BmsRecord } from './types'
 
 export async function decryptData(buf: ArrayBuffer, password: string): Promise<ArrayBuffer | null> {
@@ -51,13 +51,14 @@ export function showPasswordModal(): Promise<string | null> {
 }
 
 export async function fetchGoogleSheet(): Promise<BmsRecord[] | null> {
-  const token = getAuthToken()
+  const token = safeGet('bms_token')
+  const pb = $('progFill')
+  const autoRefLabel = $('autoRefLabel')
+  const resetBar = () => { if (pb) (pb as HTMLElement).style.width = '0%' }
   if (!token) return null
 
   try {
-    const pb = $('progFill')
     if (pb) (pb as HTMLElement).style.width = '30%'
-    const autoRefLabel = $('autoRefLabel')
     if (autoRefLabel) autoRefLabel.textContent = '⏳ دریافت دیتا از سرور...'
 
     const resp = await fetch(PROXY_URL, {
@@ -66,13 +67,15 @@ export async function fetchGoogleSheet(): Promise<BmsRecord[] | null> {
       body: JSON.stringify({ token }),
       signal: AbortSignal.timeout(30000),
     })
-    if (!resp.ok) return null
+    if (!resp.ok) { resetBar(); showToast('⚠️ سرور دیتا در دسترس نیست (' + resp.status + ')', true); return null }
 
     if (pb) (pb as HTMLElement).style.width = '60%'
     if (autoRefLabel) autoRefLabel.textContent = '⏳ پردازش دیتا...'
 
     const csv = await resp.text()
     if (csv === 'Forbidden') {
+      resetBar()
+      if (autoRefLabel) autoRefLabel.textContent = ''
       showBanner('<b>⚠️ اتصال به سرور دیتا ممکن نیست.</b><br>لطفاً از صفحه خارج شده دوباره وارد شوید. (توکن شما هنوز معتبر است)')
       return null
     }
@@ -80,7 +83,7 @@ export async function fetchGoogleSheet(): Promise<BmsRecord[] | null> {
     const wb = XLSX.read(csv, { type: 'string', raw: true })
     const ws = wb.Sheets[wb.SheetNames[0]]
     const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true })
-    if (rows.length < 2) return null
+    if (rows.length < 2) { resetBar(); showToast('⚠️ فایل سرور خالی است', true); return null }
 
     if (pb) (pb as HTMLElement).style.width = '90%'
     const records = parseRows(rows)
@@ -88,8 +91,9 @@ export async function fetchGoogleSheet(): Promise<BmsRecord[] | null> {
     setTimeout(() => { if (pb) (pb as HTMLElement).style.width = '0%' }, 600)
     return records
   } catch {
-    const pb = $('progFill')
-    if (pb) (pb as HTMLElement).style.width = '0%'
+    resetBar()
+    if (autoRefLabel) autoRefLabel.textContent = ''
+    showToast('⚠️ دریافت خودکار دیتا ناموفق بود — داده پیش‌فرض نمایش داده شد', true)
     return null
   }
 }
