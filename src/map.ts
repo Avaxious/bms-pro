@@ -7,8 +7,6 @@ import { fmtInt, esc } from './utils'
 import { debouncedRefresh } from './filter'
 import type { AggResult } from './types'
 
-declare const L: any
-
 function getLeaflet(): any {
   return (window as any).L
 }
@@ -99,7 +97,7 @@ export function renderMap(v: AggResult) {
     else polStatus[pol].pen++
   })
 
-  const maxCount = Math.max(...v.pol_coords.map((p) => p.count))
+  const maxCount = v.pol_coords.reduce((m, p) => Math.max(m, p.count), 0)
   const animPaths: { pts: [number, number][]; color: string }[] = []
 
   v.pol_coords.forEach((p) => {
@@ -133,16 +131,25 @@ export function renderMap(v: AggResult) {
     })
 
     function animLoop() {
-      if (!state.mapInstance || !state.mapInstance._map) { state.animId = null; return }
-      if (!document.hidden) {
-        dots.forEach((d) => {
-          d.idx += d.speed
-          if (d.idx >= d.path.length) d.idx = 0
-          d.dot.setLatLng(d.path[Math.floor(d.idx)])
+      if (!state.mapInstance || !state.mapInstance._container) { state.animId = null; return }
+      if (document.hidden) {
+        state.animId = requestAnimationFrame(() => {
+          const onVisible = () => {
+            document.removeEventListener('visibilitychange', onVisible)
+            if (state.mapInstance && !document.hidden) state.animId = requestAnimationFrame(animLoop)
+          }
+          document.addEventListener('visibilitychange', onVisible)
         })
+        return
       }
+      dots.forEach((d) => {
+        d.idx += d.speed
+        if (d.idx >= d.path.length) d.idx = 0
+        d.dot.setLatLng(d.path[Math.floor(d.idx)])
+      })
       state.animId = requestAnimationFrame(animLoop)
     }
+
     state.animId = requestAnimationFrame(animLoop)
   }
 
