@@ -3,7 +3,7 @@
    ============================================================ */
 
 import * as XLSX from 'xlsx'
-import { state, $, safeGet } from './state'
+import { state, $, safeGet, safeSet } from './state'
 import { log } from './utils'
 import { parseRows, aggregateVesselSheet } from './data'
 import { initFilters, refreshDashboard } from './filter'
@@ -46,7 +46,8 @@ export function showPasswordModal(): Promise<string | null> {
     const close = (val: string | null) => { m.classList.remove('show'); resolve(val) }
     if (okBtn) okBtn.onclick = () => close(inp.value)
     if (cancelBtn) cancelBtn.onclick = () => close(null)
-    inp.onkeydown = (e) => { if (e.key === 'Enter') close(inp.value) }
+    inp.onkeydown = (e) => { if (e.key === 'Enter') close(inp.value); if (e.key === 'Escape') close(null) }
+    m.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape') close(null) })
   })
 }
 
@@ -108,13 +109,15 @@ export async function tryAutoFetch() {
     if (!isLocal) {
       const gsRecords = await fetchGoogleSheet()
       if (gsRecords && gsRecords.length) {
+        const now2 = new Date()
         state.rawRecords = gsRecords
-        state.currentMeta = { time: new Date().toLocaleString('fa-IR') }
+        state.currentMeta = { time: now2.toLocaleString('fa-IR') }
+        safeSet('bms_fetchtime', Date.now().toString())
         initFilters()
         refreshDashboard()
         showToast('✅ دیتا از Google Sheets بارگذاری شد (' + gsRecords.length.toLocaleString() + ' رکورد)', false)
         const autoRefLabel = $('autoRefLabel')
-        if (autoRefLabel) autoRefLabel.textContent = '🔄 ' + new Date().toLocaleTimeString('fa-IR')
+        if (autoRefLabel) autoRefLabel.textContent = '🔄 هم‌اکنون'
         return
       }
 
@@ -157,6 +160,7 @@ export function processArrayBuffer(buf: ArrayBuffer, filename: string) {
     const now = new Date()
     const timeStr = now.toLocaleString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', year: 'numeric', month: '2-digit', day: '2-digit' })
     state.currentMeta = { filename, time: timeStr }
+    safeSet('bms_fetchtime', Date.now().toString())
     initFilters()
     refreshDashboard()
     showToast('✅ داشبورد از «' + filename + '» به‌روزرسانی شد (' + state.rawRecords.length.toLocaleString() + ' رکورد)', false)
