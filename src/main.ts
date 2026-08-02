@@ -3,13 +3,15 @@
    ============================================================ */
 
 import './style.css'
-import { state, $ } from './state'
+import { state, $, safeGet } from './state'
+import { log } from './utils'
 import { setupChartDefaults, renderAll, toggleTheme, initTheme, updateDateFormatBtn } from './charts'
-import { doLogin, logout, checkSession, loadConfig, getLoginTime } from './auth'
-import { initFilters, resetFilters, setDatePreset, onDateChange, toggleDateFormat, filterBySelect, fmtDateToMs } from './filter'
+import { doLogin, logout, checkSession, loadConfig, LOGIN_PROXY_URL } from './auth'
+import { initFilters, resetFilters, setDatePreset, onDateChange, toggleDateFormat, filterBySelect, fmtDateToMs, getFilteredRecords } from './filter'
 import { toggleAdvSearch, advSearchChange, debouncedContSearch } from './ui'
 import { exportCSV } from './export'
 import { tryAutoFetch, loadFile } from './loader'
+import { aggregateFromRecords } from './data'
 import { fmtInt } from './utils'
 
 // ---- Period Comparison ----
@@ -23,9 +25,11 @@ function comparePeriods() {
   function calc(ss: string, se: string) {
     const arr = state.rawRecords.filter((r) => {
       if (!r.arrv_date) return false
-      const ds = r.arrv_date.getTime()
-      if (ss && ds < fmtDateToMs(ss)) return false
-      if (se && ds >= fmtDateToMs(se) + 86400000) return false
+      const rd = r.arrv_date.getTime()
+      const fromMs = fmtDateToMs(ss)
+      const toMs = fmtDateToMs(se)
+      if (fromMs && rd < fromMs) return false
+      if (toMs && rd > toMs + 86400000) return false
       return true
     })
     const contSet = new Set(arr.filter((r) => r.container).map((r) => r.container))
@@ -47,34 +51,13 @@ function comparePeriods() {
   ]
   const cmpGrid = $('cmpGrid')
   if (cmpGrid) {
-    const cards = items.map((item) => {
-      const v1 = p1[item.k]
-      const v2 = p2[item.k]
+    cmpGrid.innerHTML = items.map((item) => {
+      const v1 = (p1 as any)[item.k], v2 = (p2 as any)[item.k]
       const diff = v2 - v1
       const pct = v1 ? ((v2 - v1) / v1 * 100).toFixed(1) : 'N/A'
-      const card = document.createElement('div')
-      card.className = 'cmp-item'
-
-      const label = document.createElement('div')
-      label.className = 'cmp-lbl'
-      label.textContent = item.lbl
-
-      const value = document.createElement('div')
-      value.className = 'cmp-v ' + (diff > 0 ? 'teal' : 'gold')
-      value.textContent = fmtInt(v2)
-
-      const previous = document.createElement('div')
-      previous.className = 'cmp-d'
-      previous.textContent = 'دوره ۱: ' + fmtInt(v1)
-
-      const change = document.createElement('div')
-      change.className = 'cmp-ch ' + (diff > 0 ? 'up' : diff < 0 ? 'dn' : '')
-      change.textContent = (diff > 0 ? '+' : '') + pct + '%'
-
-      card.append(label, value, previous, change)
-      return card
-    })
-    cmpGrid.replaceChildren(...cards)
+      const cl = diff > 0 ? 'up' : diff < 0 ? 'dn' : ''
+      return '<div class="cmp-item"><div class="cmp-lbl">' + item.lbl + '</div><div class="cmp-v ' + (diff > 0 ? 'teal' : 'gold') + '">' + fmtInt(v2) + '</div><div class="cmp-d">دوره ۱: ' + fmtInt(v1) + '</div><div class="cmp-ch ' + cl + '">' + (diff > 0 ? '+' : '') + pct + '%</div></div>'
+    }).join('')
   }
 }
 
@@ -100,6 +83,31 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
   // Setup chart defaults
   setupChartDefaults()
 
+  // Init Web Worker for aggregation
+  try {
+    const worker = new Worker('./worker.js')
+    worker.postMessage({ type: 'ping' })
+    worker.onmessage = (e) => {
+      const d = e.data
+      if (d && d.type === 'pong') {
+        state.workerReady = true
+        return
+      }
+      if (d && d.type === 'result' && state.workerCallback) {
+        clearTimeout(state.workerFallback)
+        state.workerFallback = null
+        state.workerBusy = false
+        const cb = state.workerCallback
+        state.workerCallback = null
+        cb(d.data)
+      }
+    }
+    worker.onerror = () => { state.workerReady = false }
+    state.worker = worker
+  } catch {
+    log('Worker init failed — using main thread')
+  }
+
   // Render default data
   renderAll(DEFAULT_DATA as any, { filename: null, time: null })
   initFilters()
@@ -107,9 +115,12 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
   // Try auto-fetch real data
   tryAutoFetch()
 
+  // After login, fetch data automatically
+  state.onLoginSuccess = () => { tryAutoFetch() }
+
   // Auto-refresh every 5 minutes
   state.autoRefreshInterval = setInterval(() => {
-    const loggedIn = getLoginTime()
+    const loggedIn = safeGet('bms_logintime')
     if (loggedIn && (Date.now() - parseInt(loggedIn)) < 18e5 && !state.fetchInProgress) {
       const autoRefLabel = document.getElementById('autoRefLabel')
       if (autoRefLabel) autoRefLabel.textContent = '🔄 بروزرسانی...'
@@ -119,13 +130,13 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
 
   // Session timeout check
   state.logoutCheckInterval = setInterval(() => {
-    const t = getLoginTime()
+    const t = safeGet('bms_logintime')
     if (t && (Date.now() - parseInt(t)) > 18e5) logout()
   }, 15000)
 })()
 
-// ---- Event Listeners ----
-document.addEventListener('DOMContentLoaded', () => {
+// ---- Event Listeners (run immediately since module scripts are deferred) ----
+;(() => {
   // Login
   const loginBtn = $('loginBtn')
   if (loginBtn) loginBtn.addEventListener('click', doLogin)
@@ -209,13 +220,10 @@ document.addEventListener('DOMContentLoaded', () => {
   })
 
   // Init date format btn
-  const df = localStorage.getItem('bms_dateformat')
+  const df = safeGet('bms_dateformat')
   if (df === 'jalali') {
     state.dateFormat = 'jalali'
     const dateModeBtn2 = $('dateModeBtn')
     if (dateModeBtn2) dateModeBtn2.textContent = '📅 شمسی'
   }
-})
-
-// Expose for debugging
-;(window as any).__bms = { state }
+})()
