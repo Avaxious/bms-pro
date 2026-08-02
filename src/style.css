@@ -358,8 +358,9 @@ td.miss { background: rgba(229, 101, 74, .08); color: var(--text-faint); font-st
 .auto-cmp-item .ac-change.flat { color: var(--text-faint); }
 
 /* --- Progress Bar --- */
-.progBar { height: 3px; background: var(--panel-border); border-radius: 2px; overflow: hidden; margin: 6px 0; }
-.progBar .fill { height: 100%; width: 0%; background: var(--teal); border-radius: 2px; transition: width .3s; will-change: width; }
+.progBar { height: 6px; background: linear-gradient(90deg, rgba(140,182,219,.08), rgba(140,182,219,.14)); border-radius: 3px; overflow: hidden; margin: 8px 0; box-shadow: inset 0 1px 2px rgba(0,0,0,.25); }
+.progBar .fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--teal), #4ECBFF, var(--teal)); background-size: 200% 100%; border-radius: 3px; transition: width .5s cubic-bezier(.25,.8,.25,1); will-change: width; animation: shimmer 1.8s infinite linear; box-shadow: 0 0 6px rgba(34,192,174,.5), 0 0 12px rgba(34,192,174,.3); }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
 /* --- SR Only (Accessibility) --- */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
