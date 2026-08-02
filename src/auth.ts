@@ -2,76 +2,22 @@
    BMS Dashboard — Authentication
    ============================================================ */
 
-import { state, $ } from './state'
+import { state, $, safeGet, safeSet, safeRemove } from './state'
 import { sha256 } from './utils'
 import { log } from './utils'
 
 const SESSION_DURATION = 18e5 // 30 minutes
-
-const CONFIG_ENDPOINTS = new Set(['PROXY_URL', 'LOGIN_PROXY_URL'])
-const ALLOWED_CONFIG_ORIGINS = new Set(['https://script.google.com'])
-
-function readSessionItem(key: string): string | null {
-  const value = sessionStorage.getItem(key)
-  if (value) return value
-  if (key === 'bms_token') {
-    // One-time cleanup for older releases that persisted tokens longer than the browser session.
-    localStorage.removeItem(key)
-  }
-  return null
-}
-
-function writeSessionItem(key: string, value: string) {
-  sessionStorage.setItem(key, value)
-}
-
-function clearSession() {
-  sessionStorage.removeItem('bms_token')
-  sessionStorage.removeItem('bms_username')
-  sessionStorage.removeItem('bms_logintime')
-  localStorage.removeItem('bms_token')
-  localStorage.removeItem('bms_username')
-  localStorage.removeItem('bms_logintime')
-  localStorage.removeItem('bms_migrated')
-}
-
-function readLoginTime(): string | null {
-  return readSessionItem('bms_logintime') || localStorage.getItem('bms_logintime')
-}
-
-function isAllowedProxyUrl(value: unknown): value is string {
-  if (typeof value !== 'string') return false
-  try {
-    const url = new URL(value)
-    return ALLOWED_CONFIG_ORIGINS.has(url.origin) && url.pathname.startsWith('/macros/s/') && url.pathname.endsWith('/exec')
-  } catch {
-    return false
-  }
-}
-
-export function getAuthToken(): string | null {
-  return readSessionItem('bms_token')
-}
-
-export function getLoginTime(): string | null {
-  return readLoginTime()
-}
 
 export let PROXY_URL = ''
 export let LOGIN_PROXY_URL = ''
 
 export async function loadConfig() {
   try {
-    const cfgResp = await fetch('config.json')
+    const cfgResp = await fetch('config.json', { signal: AbortSignal.timeout(8000) })
     if (cfgResp.ok) {
       const cfg = await cfgResp.json()
-      if (typeof cfg === 'object' && cfg !== null) {
-        Object.keys(cfg).forEach((key) => { if (!CONFIG_ENDPOINTS.has(key)) log('Ignoring unknown config key:', key) })
-        if (isAllowedProxyUrl(cfg.PROXY_URL)) PROXY_URL = cfg.PROXY_URL
-        else log('Rejected invalid PROXY_URL from public config')
-        if (isAllowedProxyUrl(cfg.LOGIN_PROXY_URL)) LOGIN_PROXY_URL = cfg.LOGIN_PROXY_URL
-        else log('Rejected invalid LOGIN_PROXY_URL from public config')
-      }
+      if (cfg.PROXY_URL) PROXY_URL = cfg.PROXY_URL
+      if (cfg.LOGIN_PROXY_URL) LOGIN_PROXY_URL = cfg.LOGIN_PROXY_URL
     }
   } catch (e) {
     log('Config load failed:', e)
@@ -79,7 +25,7 @@ export async function loadConfig() {
 }
 
 export function updateTimer() {
-  const t = readLoginTime()
+  const t = safeGet('bms_logintime')
   if (!t) return
   const el = $('timerDisplay')
   if (!el) return
@@ -120,10 +66,10 @@ export async function doLogin() {
 
     if (data.ok && data.token) {
       const now = Date.now().toString()
-      writeSessionItem('bms_token', data.token)
-      writeSessionItem('bms_logintime', now)
-      writeSessionItem('bms_username', user)
-      localStorage.setItem('bms_migrated', '1')
+      safeSet('bms_token', data.token)
+      safeSet('bms_logintime', now)
+      safeSet('bms_username', user)
+      safeSet('bms_migrated', '1')
 
       const userDisplay = $('userDisplay')
       const welcomeUser = $('welcomeUser')
@@ -135,6 +81,7 @@ export async function doLogin() {
       if (timerChip) timerChip.style.display = ''
       updateTimer()
       if (splash) splash.classList.remove('show')
+      if (state.onLoginSuccess) state.onLoginSuccess()
     } else {
       if (errEl) { errEl.textContent = '❌ نام کاربری یا رمز عبور اشتباه است'; errEl.style.display = 'block' }
       if (btn) { btn.classList.remove('loading'); btn.textContent = 'ورود به داشبورد ←' }
@@ -146,7 +93,7 @@ export async function doLogin() {
 }
 
 export function logout() {
-  const token = getAuthToken()
+  const token = safeGet('bms_token')
   if (token) {
     try {
       fetch(LOGIN_PROXY_URL, {
@@ -158,7 +105,9 @@ export function logout() {
     } catch (e) { /* ignore */ }
   }
 
-  clearSession()
+  safeRemove('bms_token')
+  safeRemove('bms_username')
+  safeRemove('bms_logintime')
 
   const splash = $('splash')
   const loginUser = $('loginUser') as HTMLInputElement | null
@@ -182,10 +131,10 @@ export function logout() {
 }
 
 export function checkSession() {
-  const t = readLoginTime()
+  const t = safeGet('bms_logintime')
   if (t && (Date.now() - parseInt(t)) < SESSION_DURATION) {
-    const u = readSessionItem('bms_username') || localStorage.getItem('bms_username')
-    const tok = getAuthToken()
+    const u = safeGet('bms_username')
+    const tok = safeGet('bms_token')
     if (u && tok) {
       const userDisplay = $('userDisplay')
       const welcomeUser = $('welcomeUser')
@@ -199,13 +148,11 @@ export function checkSession() {
       state.timerInterval = setInterval(updateTimer, 1000)
     }
   } else {
-    clearSession()
+    safeRemove('bms_token')
+    safeRemove('bms_logintime')
+    safeRemove('bms_username')
+    safeRemove('bms_migrated')
     const splash = $('splash')
     if (splash) splash.classList.add('show')
   }
-}
-
-export function isSessionValid(): boolean {
-  const t = readLoginTime()
-  return !!(t && (Date.now() - parseInt(t)) < SESSION_DURATION && getAuthToken())
 }
