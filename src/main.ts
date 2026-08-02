@@ -8,7 +8,7 @@ import { log } from './utils'
 import { setupChartDefaults, renderAll, toggleTheme, initTheme, updateDateFormatBtn } from './charts'
 import { doLogin, logout, checkSession, loadConfig, LOGIN_PROXY_URL } from './auth'
 import { initFilters, resetFilters, setDatePreset, onDateChange, toggleDateFormat, filterBySelect, fmtDateToMs, getFilteredRecords } from './filter'
-import { toggleAdvSearch, advSearchChange, debouncedContSearch, showToast } from './ui'
+import { toggleAdvSearch, advSearchChange, debouncedContSearch, showToast, updateFreshness } from './ui'
 import { exportCSV } from './export'
 import { tryAutoFetch, loadFile } from './loader'
 import { aggregateFromRecords } from './data'
@@ -131,8 +131,11 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
   // Session timeout check
   state.logoutCheckInterval = setInterval(() => {
     const t = safeGet('bms_logintime')
-    if (t && (Date.now() - parseInt(t)) > 18e5) logout()
+    if (t && (Date.now() - parseInt(t)) > 72e5) logout()
   }, 15000)
+
+  // Freshness label refresher (every 30s)
+  setInterval(() => { try { updateFreshness() } catch {} }, 30000)
 })()
 
 // ---- Event Listeners (run immediately since module scripts are deferred) ----
@@ -141,7 +144,9 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
   const loginBtn = $('loginBtn')
   if (loginBtn) loginBtn.addEventListener('click', doLogin)
   const loginPass = $('loginPass')
-  if (loginPass) loginPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin() })
+  if (loginPass) loginPass.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Enter' && e.ctrlKey) doLogin() })
+  const loginUser = $('loginUser')
+  if (loginUser) loginUser.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) doLogin() })
 
   // Logout
   const logoutBtn = $('logoutBtn')
@@ -184,6 +189,10 @@ const DEFAULT_DATA = {"total_containers":7786,"total_shipments":8066,"total_teu"
     showToast('🔄 تازه‌سازی دیتا...', false)
     tryAutoFetch()
   })
+
+  // Print report
+  const printBtn = $('printBtn')
+  if (printBtn) printBtn.addEventListener('click', () => window.print())
 
   // Export
   const exportBtn = $('exportCSVBtn')
