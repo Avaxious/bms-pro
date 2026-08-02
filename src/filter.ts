@@ -2,9 +2,9 @@
    BMS Dashboard — Filter Logic
    ============================================================ */
 
-import { state, $, isJalali } from './state'
+import { state, $, isJalali, safeGet, safeSet } from './state'
 import { fmtDateJalali, fmtDateMiladi, g2j, j2g } from './calendar'
-import { debounce, log } from './utils'
+import { debounce, log, esc } from './utils'
 import { aggregateAsync, aggregateFromRecords } from './data'
 import { renderAll } from './charts'
 import type { AggResult, BmsRecord } from './types'
@@ -137,8 +137,8 @@ export function refreshDashboard() {
   } else if (records.length > 1) {
     const recDates = records.map((r) => r.arrv_date).filter(Boolean) as Date[]
     if (recDates.length > 1) {
-      const minRD = new Date(Math.min(...recDates.map((d) => d.getTime())))
-      const maxRD = new Date(Math.max(...recDates.map((d) => d.getTime())))
+      const minRD = new Date(recDates.reduce((m, d) => Math.min(m, d.getTime()), Infinity))
+      const maxRD = new Date(recDates.reduce((m, d) => Math.max(m, d.getTime()), -Infinity))
       if (Math.round((maxRD.getTime() - minRD.getTime()) / 86400000) > 0) {
         const rpFrom = new Date(minRD.getFullYear() - 1, minRD.getMonth(), minRD.getDate())
         const rpTo = new Date(maxRD.getFullYear() - 1, maxRD.getMonth(), maxRD.getDate())
@@ -156,13 +156,15 @@ export function refreshDashboard() {
     }
   }
 
-  const filterParams = { dateFormat: localStorage.getItem('bms_dateformat') || 'miladi' }
+  const filterParams = { dateFormat: safeGet('bms_dateformat') || 'miladi' }
 
   function onMainResult(mainData: AggResult | null) {
     if (!mainData) mainData = aggregateFromRecords(records)
     const existingContainers = new Set(mainData.all_records.map((r) => r.container))
-    const pending = state.rawRecords.filter((r) => !r.arrv_date && (!existingContainers.has(r.container) || !r.container))
+    const pending = state.rawRecords.filter((r) => !r.arrv_date && r.container && !existingContainers.has(r.container))
     pending.forEach((r) => {
+      if (existingContainers.has(r.container)) return
+      existingContainers.add(r.container)
       mainData!.all_records.push({
         container: r.container || null, vessel: r.vessel || null, size: r.size || null,
         qty: r.qty || 0, pol_forwarder: r.pol_forwarder || null, pol: r.pol || null,
@@ -198,8 +200,10 @@ export function buildMsOptions() {
     const s = new Set<string>()
     state.rawRecords.forEach((r) => { const v = r[prop]; if (v) s.add(v as string) })
     const vals = Array.from(s).sort()
-    sel.replaceChildren(new Option('همه', ''))
-    vals.forEach((v) => { sel.appendChild(new Option(v, v)) })
+    sel.innerHTML = '<option value="">همه</option>'
+    vals.forEach((v) => {
+      sel.insertAdjacentHTML('beforeend', '<option value="' + esc(v) + '">' + esc(v) + '</option>')
+    })
     sel.value = cur
   })
 }
@@ -234,8 +238,8 @@ export function initFilters() {
   const toEl = $('fltTo') as HTMLInputElement | null
 
   if (dates.length) {
-    const minDate = new Date(Math.min(...dates.map((d) => d.getTime())))
-    const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())))
+    const minDate = new Date(dates.reduce((m, d) => Math.min(m, d.getTime()), Infinity))
+    const maxDate = new Date(dates.reduce((m, d) => Math.max(m, d.getTime()), -Infinity))
     if (fromEl) fromEl.value = fmtDate(minDate)
     if (toEl) toEl.value = fmtDate(maxDate)
   } else {
@@ -342,7 +346,7 @@ export function updateFilterOptions() {
       if (!r.arrv_date) return false
       const d = fmtDate(r.arrv_date), dm = fmtDateToMs(d)
       if (from && dm < fmtDateToMs(from)) return false
-      if (to && dm > fmtDateToMs(to)) return false
+      if (to && dm > fmtDateToMs(to) + 86400000) return false
       return true
     })
   }
@@ -355,8 +359,8 @@ export function updateFilterOptions() {
     const s = new Set<string>()
     dateFiltered.forEach((r) => { const v = r[prop]; if (v) s.add(v as string) })
     const vals = Array.from(s).sort()
-    sel.replaceChildren(new Option('همه', ''))
-    vals.forEach((v) => { sel.appendChild(new Option(v, v)) })
+    sel.innerHTML = '<option value="">همه</option>'
+    vals.forEach((v) => { sel.insertAdjacentHTML('beforeend', '<option value="' + esc(v) + '">' + esc(v) + '</option>') })
     if (cur && vals.indexOf(cur) !== -1) sel.value = cur
   })
 
@@ -369,15 +373,15 @@ export function updateFilterOptions() {
     const sel = $(advIds[i]) as HTMLSelectElement | null
     if (!sel) return
     const cur = sel.value
-    sel.replaceChildren(new Option('همه', ''))
-    vals.forEach((v) => { sel.appendChild(new Option(v, v)) })
+    sel.innerHTML = '<option value="">همه</option>'
+    vals.forEach((v) => { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o) })
     if (cur && vals.indexOf(cur) !== -1) sel.value = cur
   })
 }
 
 export function toggleDateFormat() {
   state.dateFormat = isJalali() ? 'miladi' : 'jalali'
-  localStorage.setItem('bms_dateformat', state.dateFormat)
+  safeSet('bms_dateformat', state.dateFormat)
   const dateModeBtn = $('dateModeBtn')
   if (dateModeBtn) dateModeBtn.textContent = isJalali() ? '📅 شمسی' : '📅 میلادی'
   if (state.rawRecords.length) { updateDateInputs(); initFilters() }
