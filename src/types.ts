@@ -41,7 +41,6 @@ export interface AggResult {
   rangeDays: number
   all_records: ContainerRecord[]
   pol_coords: PolCoord[]
-  line_share: LabelValue[]
   prevPeriod?: AggResult
   prevPeriodLabel?: string
   curPeriodLabel?: string
