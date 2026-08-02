@@ -17,12 +17,6 @@ export function esc(s: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
-export function sanitizeHtml(s: unknown): string {
-  const d = document.createElement('div')
-  d.textContent = String(s)
-  return d.innerHTML
-}
-
 export function fmtInt(n: number): string {
   return new Intl.NumberFormat('en-US').format(Math.round(n || 0))
 }
