@@ -46,8 +46,13 @@ function celSz(v: unknown): string {
   return '<td class="sz">' + esc(v) + "'" + '</td>'
 }
 
+let vsRafPending = false
 function vsRenderRows() {
-  if (!state.vsScrollEl || !state.vsBodyEl) return
+  if (vsRafPending) return
+  vsRafPending = true
+  requestAnimationFrame(() => {
+    vsRafPending = false
+    if (!state.vsScrollEl || !state.vsBodyEl) return
   const scrollTop = state.vsScrollEl.scrollTop
   const viewH = state.vsScrollEl.clientHeight
   const total = state.vsFiltered.length
@@ -66,6 +71,7 @@ function vsRenderRows() {
   }
   if (bottomPad > 0) html += '<tr style="height:' + bottomPad + 'px"><td colspan="11"></td></tr>'
   state.vsBodyEl.innerHTML = html
+  })
 }
 
 export function renderContainerList(records?: ContainerRecord[]) {
@@ -98,25 +104,6 @@ export function renderContainerList(records?: ContainerRecord[]) {
     }
     return true
   })
-
-  const sk = state.activeFilters as any // reuse contSort for sort key
-  // Sort if needed (simplified — the original uses contSort global)
-  const contSort = (window as any).__contSort || { key: null, asc: true }
-  if (contSort.key && contSort.key !== 'idx') {
-    state.vsFiltered.sort((a: any, b: any) => {
-      let va = a[contSort.key], vb = b[contSort.key]
-      if (va == null) va = ''
-      if (vb == null) vb = ''
-      if (typeof va === 'number') return contSort.asc ? va - vb : vb - va
-      return contSort.asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
-    })
-  }
-
-  document.querySelectorAll('.sortic').forEach((el) => { el.className = 'sortic' })
-  if (contSort.key) {
-    const sel = document.getElementById('srt-' + contSort.key)
-    if (sel) sel.className = 'sortic ' + (contSort.asc ? 'asc' : 'dsc')
-  }
 
   const totalCount = $('contTotalCount')
   const showCount = $('contShowCount')
