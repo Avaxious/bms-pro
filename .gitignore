@@ -3,3 +3,5 @@ dist/
 *.log
 .github_token
 .DS_Store
+# Lock file
+package-lock.json
