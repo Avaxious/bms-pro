@@ -25,11 +25,7 @@ self.onmessage = function(e) {
 };
 
 function contCount(arr) {
-  var s = new Set();
-  for (var i = 0; i < arr.length; i++) {
-    if (arr[i].container) s.add(arr[i].container);
-  }
-  return s.size;
+  return arr.length;
 }
 
 function shipCount(arr) {
